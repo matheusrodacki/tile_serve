@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Tile Serve • Google Maps Overlay</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+
+      body {
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+        background: #0f172a;
+        color: #f8fafc;
+      }
+
+      header,
+      footer {
+        padding: 0.75rem 1.5rem;
+        background: rgba(15, 23, 42, 0.85);
+        backdrop-filter: blur(4px);
+      }
+
+      header {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.3);
+      }
+
+      header strong {
+        font-size: 1.25rem;
+      }
+
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.75rem 1.5rem;
+        font-size: 0.9rem;
+      }
+
+      .controls label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .controls input[type='range'] {
+        width: 160px;
+      }
+
+      .counter {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .counter span {
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+      }
+
+      .hint {
+        font-size: 0.85rem;
+        color: rgba(226, 232, 240, 0.7);
+      }
+
+      #map {
+        flex: 1;
+        width: 100%;
+        min-height: 70vh;
+      }
+
+      a {
+        color: #38bdf8;
+      }
+
+      footer {
+        border-top: 1px solid rgba(148, 163, 184, 0.3);
+        text-align: center;
+        font-size: 0.75rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <strong>Tile Serve</strong>
+        <div class="hint">
+          Adicione sua Google Maps API Key via <code>?key=SEU_API_KEY</code> na URL.
+        </div>
+      </div>
+      <div class="controls" hidden id="controls">
+        <label>
+          Opacidade
+          <input id="opacity" type="range" min="0" max="100" value="60" />
+        </label>
+        <div class="counter">
+          Tiles carregados: <span id="tiles-count">0</span>
+          <button id="reset-tiles" type="button">Resetar</button>
+        </div>
+        <div class="hint">
+          Tile atual:
+          <a id="tile-link" href="#" target="_blank" rel="noopener">—</a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <div id="map"></div>
+      <div class="warning" id="warning" hidden>
+        <h2>Informe sua Google Maps API Key</h2>
+        <p>
+          Abra <code>http://localhost:3000/?key=SEU_API_KEY</code> substituindo pela sua key
+          real para carregar o mapa.
+        </p>
+        <p>
+          Se quiser deixar fixo, edite <code>public/index.html</code> e acrescente a key direto
+          no script de carregamento do Google Maps.
+        </p>
+      </div>
+    </main>
+
+    <footer>
+      <small>
+        Google Maps como base + overlay servido por
+        <code>http://localhost:3000/maps/{z}/{x}/{y}.png</code>.
+      </small>
+    </footer>
+
+    <script>
+      (function () {
+        const params = new URLSearchParams(window.location.search);
+        const apiKey = params.get('key');
+        const warning = document.getElementById('warning');
+        const tilesCountEl = document.getElementById('tiles-count');
+        const resetTilesButton = document.getElementById('reset-tiles');
+        const opacityInput = document.getElementById('opacity');
+        const controls = document.getElementById('controls');
+        const tileLink = document.getElementById('tile-link');
+        const origin = window.location.origin;
+        let tileCount = 0;
+
+        const updateTileCounter = () => {
+          tilesCountEl.textContent = tileCount.toString();
+        };
+
+        const updateTileLink = (coord, zoom) => {
+          if (!coord) {
+            tileLink.textContent = '—';
+            tileLink.href = '#';
+            return;
+          }
+          const url = `${origin}/maps/${zoom}/${coord.x}/${coord.y}.png`;
+          tileLink.textContent = url;
+          tileLink.href = url;
+        };
+
+        resetTilesButton.addEventListener('click', () => {
+          tileCount = 0;
+          updateTileCounter();
+        });
+
+        if (!apiKey) {
+          warning.hidden = false;
+          return;
+        }
+
+        window.initMap = function initMap() {
+          warning.hidden = true;
+          const map = new google.maps.Map(document.getElementById('map'), {
+            center: { lat: 45.9919, lng: -114.1876 },
+            zoom: 15,
+            mapTypeId: 'satellite',
+            tilt: 0,
+            streetViewControl: false,
+            mapTypeControl: true,
+          });
+
+          const overlay = new google.maps.ImageMapType({
+            getTileUrl: (coord, zoom) => {
+              tileCount += 1;
+              updateTileCounter();
+              updateTileLink(coord, zoom);
+              return `${origin}/maps/${zoom}/${coord.x}/${coord.y}.png`;
+            },
+            tileSize: new google.maps.Size(256, 256),
+            opacity: Number(opacityInput.value) / 100,
+            name: 'Talhões Heatmap',
+          });
+
+          map.overlayMapTypes.insertAt(0, overlay);
+          controls.hidden = false;
+          updateTileCounter();
+
+          opacityInput.addEventListener('input', (event) => {
+            overlay.setOpacity(Number(event.target.value) / 100);
+          });
+
+          map.addListener('dragend', () => {
+            const center = map.getCenter();
+            const zoom = map.getZoom();
+            const coord = {
+              x: Math.floor(((center.lng() + 180) / 360) * 2 ** zoom),
+              y: Math.floor(
+                ((1 -
+                  Math.log(
+                    Math.tan((center.lat() * Math.PI) / 180) +
+                      1 / Math.cos((center.lat() * Math.PI) / 180),
+                  ) /
+                    Math.PI) /
+                  2) *
+                  2 ** zoom,
+              ),
+            };
+            updateTileLink(coord, zoom);
+          });
+
+          map.addListener('zoom_changed', () => {
+            const center = map.getCenter();
+            const zoom = map.getZoom();
+            const coord = {
+              x: Math.floor(((center.lng() + 180) / 360) * 2 ** zoom),
+              y: Math.floor(
+                ((1 -
+                  Math.log(
+                    Math.tan((center.lat() * Math.PI) / 180) +
+                      1 / Math.cos((center.lat() * Math.PI) / 180),
+                  ) /
+                    Math.PI) /
+                  2) *
+                  2 ** zoom,
+              ),
+            };
+            updateTileLink(coord, zoom);
+          });
+        };
+
+        const script = document.createElement('script');
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initMap&v=weekly`; // eslint-disable-line
+        script.async = true;
+        script.defer = true;
+        document.head.appendChild(script);
+      })();
+    </script>
+  </body>
+</html>

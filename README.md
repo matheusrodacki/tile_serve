@@ -110,6 +110,17 @@ const overlay = new google.maps.ImageMapType({
 map.overlayMapTypes.push(overlay);
 ```
 
+## Visualização rápida no navegador
+
+A API já serve uma página estática em `public/index.html`. Depois de iniciar o Nest (`npm run start:dev`), abra `http://localhost:3000/?key=SEU_GOOGLE_MAPS_API_KEY` (troque pela sua key).
+
+Você verá o Google Maps carregado normalmente com uma camada extra puxando direto de `http://localhost:3000/maps/{z}/{x}/{y}.png`. No topo há:
+
+- Controle de opacidade da overlay
+- Contador de tiles carregados (com botão de reset)
+- Link para o último tile requisitado (útil para depuração)
+
+
 ## Próximos passos sugeridos
 
 1. Adicionar cache (Redis, disco ou MBTiles) para tiles estáticos.
