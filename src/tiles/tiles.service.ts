@@ -36,31 +36,48 @@ export class TilesService {
                 0,
                 4326
               ),
-              '8BUI'::text,
-              0::double precision,
-              0::double precision
+              '32BF'::text,
+              -9999::double precision,
+              -9999::double precision
             ) AS rast
-          )
-          SELECT ST_AsPNG(
-            COALESCE(
+          ),
+          heatmap AS (
+            SELECT COALESCE(
               (
                 SELECT ST_Union(
                   ST_AsRaster(
-                    ST_Intersection(t.geom, b.geom),
+                    sample.geom,
                     c.rast,
-                    '8BUI'::text,
-                    0::double precision,
-                    255::double precision
+                    '32BF'::text,
+                    LEAST(GREATEST(sample.heat_value, 0), 1)::double precision,
+                    -9999::double precision
                   )
                 )
-                FROM talhoes t
-                WHERE ST_Intersects(t.geom, b.geom)
+                FROM (
+                  SELECT
+                    ST_Intersection(t.geom, b.geom) AS geom,
+                    (
+                      (('x' || substr(md5(t.id::text), 1, 8))::bit(32)::bigint)::double precision
+                      / 4294967295.0
+                    ) AS heat_value
+                  FROM talhoes t
+                  WHERE ST_Intersects(t.geom, b.geom)
+                ) AS sample
               ),
               c.rast
+            ) AS rast
+            FROM bounds b
+            CROSS JOIN canvas c
+          )
+          SELECT ST_AsPNG(
+            ST_ColorMap(
+              rast,
+              1,
+              '-9999 0 0 0 0;\n               0 33 102 172 180;\n               0.5 253 174 97 220;\n               1 178 24 43 255',
+              'INTERPOLATE=TRUE'
             )
           ) AS tile
-          FROM bounds b
-          CROSS JOIN canvas c;
+          FROM heatmap;
         `,
         [bounds.west, bounds.south, bounds.east, bounds.north],
       );

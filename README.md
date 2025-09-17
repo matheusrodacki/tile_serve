@@ -74,6 +74,10 @@ npm run migration:generate -- src/database/migrations/<NomeDaMigration>
 npm run migration:revert
 ```
 
+## Heatmap
+
+Os tiles retornam um mapa de calor sintético. Cada talhão recebe uma intensidade pseudoaleatória (fixa por `id`) que é convertida em um gradiente interpolado (azul → amarelo → vermelho). Isso ajuda a testar o overlay antes de definir uma métrica real (NDVI, produtividade, etc.).
+
 ## Endpoint de tiles
 
 `GET /maps/:z/:x/:y.png`
